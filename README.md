@@ -23,7 +23,7 @@ npx hardhat node
 
 ### Then run scripts
 ```bash
-npx run compile
+npx hardhat compile
 npx hardhat run scripts/deploy.js --network localhost
 npx hardhat run scripts/mintBatch.js --network localhost
 ```
@@ -43,7 +43,7 @@ npx hardhat run scripts/mintBatch.js --network localhost
 bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
 // Mint (only Registry has MINTER_ROLE)
-function mintTo(address to) external returns (uint256 tokenId);
+function mint(address to) external returns (uint256 tokenId);
 
 // Standard ERC-721 custody
 function ownerOf(uint256 tokenId) public view returns (address);
@@ -73,28 +73,30 @@ bytes32 public constant ORACLE_UPDATER = keccak256("ORACLE_UPDATER");
 ```solidity
 enum Status { Manufactured, QAReleased, Shipped, Received, InStorage, Consumed }
 
-struct Batch {
+struct BatchInfo {
   string  lot;
   uint64  expiry;
   int16   tempMinTimes10;
   int16   tempMaxTimes10;
   Status  status;
+  bytes32 metadataHash;
   bool    breach;
   uint64  firstBreachAt;
-  // recalls (separate from lifecycle)
+
   bool    recalled;
   string  recallReasonCID;
   uint64  recallSetAt;
-  // doc anchors (latest per type)
-  mapping(bytes32 => string) docCidByType; //"COA","MANIFEST","RECEIVING" -> CID
 }
+
+// Latest doc CID per type is tracked separately:
+mapping(uint256 => mapping(bytes32 => string)) public latestDocCid;
 ```
 
 ### Events
 
 ```solidity
-event BatchRegistered(uint256 indexed tokenId, string lot, uint64 expiry, int16 min10, int16 max10);
-event StatusUpdated(uint256 indexed tokenId, Status newStatus, address indexed by);
+event BatchRegistered(uint256 indexed tokenId, string lot, uint64 expiry, int16 tempMinTimes10, int16 tempMaxTimes10);
+event StatusUpdated(uint256 indexed tokenId, Status next, address actor);
 event TemperatureEvent(uint256 indexed tokenId, int16 cTimes10, bool isBreach, uint64 timestamp);
 event DocumentPinned(uint256 indexed tokenId, bytes32 indexed docType, string cid);
 event RecallSet(uint256 indexed tokenId, bool recalled, string reasonCid, uint64 at);
@@ -104,8 +106,7 @@ event RecallSet(uint256 indexed tokenId, bool recalled, string reasonCid, uint64
 
 ```solidity
 error NotCustodian();
-error BadStatusTransition(Status from, Status to);
-error NotAuthorized();
+error BadStatusTransition();
 error DuplicateLot(); 
 ```
 
@@ -115,10 +116,10 @@ error DuplicateLot();
 function mintBatch(
   string calldata lot,
   uint64 expiry,
-  int16 min10,
-  int16 max10,
+  int16 tempMinTimes10,
+  int16 tempMaxTimes10,
   bytes32 metadataHash, 
-  string calldata origin
+  string calldata
 ) external onlyRole(MANUFACTURER) returns (uint256 tokenId);
 
 function updateStatus(uint256 tokenId, Status next) external; // custodian-only
@@ -130,7 +131,32 @@ function pinDocument(uint256 tokenId, bytes32 docType, string calldata cid) exte
 function setRecall(uint256 tokenId, bool recalled, string calldata reasonCid) external onlyRole(REGULATOR);
 
 // Views
-function batches(uint256 tokenId) external view returns ();
+function batches(uint256 tokenId) external view returns (
+    string memory lot,
+    uint64 expiry,
+    int16 tempMinTimes10,
+    int16 tempMaxTimes10,
+    Status status,
+    bytes32 metadataHash,
+    bool breach,
+    uint64 firstBreachAt,
+    bool recalled,
+    string memory recallReasonCID,
+    uint64 recallSetAt);
+
+function getBatch(uint256 tokenId) external view returns (
+    string memory lot,
+    uint64 expiry,
+    int16 tempMinTimes10,
+    int16 tempMaxTimes10,
+    Status status,
+    bool breach,
+    uint64 firstBreachAt,
+    bool recalled,
+    string memory recallReasonCID,
+    uint64 recallSetAt,
+    address currentCustodian
+  );
 ```
 
 ---

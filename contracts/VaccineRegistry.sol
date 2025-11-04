@@ -40,7 +40,7 @@ contract VaccineRegistry is AccessControl {
 
     event BatchRegistered(uint256 indexed tokenId, string lot, uint64 expiry, int16 tempMinTimes10, int16 tempMaxTimes10);
     event StatusUpdated(uint256 indexed tokenId, Status next, address actor);
-    event DocumentPinned(uint256 indexed tokenId, bytes32 docType, string cid);
+    event DocumentPinned(uint256 indexed tokenId, bytes32 indexed docType, string cid);
     event TemperatureEvent(uint256 indexed tokenId, int16 cTimes10, bool isBreach, uint64 at);
     event RecallSet(uint256 indexed tokenId, bool recalled, string reasonCID, uint64 at);
 
@@ -129,5 +129,33 @@ contract VaccineRegistry is AccessControl {
         if (cur == Status.Received)    return next == Status.InStorage;
         if (cur == Status.InStorage)   return next == Status.Consumed;
         return false; 
+    }
+
+    function getBatch(uint256 tokenId) external view returns (
+        string memory lot,
+        uint64 expiry,
+        int16 tempMinTimes10,
+        int16 tempMaxTimes10,
+        Status status,
+        bool breach,
+        uint64 firstBreachAt,
+        bool recalled,
+        string memory recallReasonCID,
+        uint64 recallSetAt,
+        address currentCustodian
+    )
+    {
+    BatchInfo storage b = batches[tokenId];
+    lot = b.lot;
+    expiry = b.expiry;
+    tempMinTimes10 = b.tempMinTimes10;
+    tempMaxTimes10 = b.tempMaxTimes10;
+    status = b.status;
+    breach = b.breach;
+    firstBreachAt = b.firstBreachAt;
+    recalled = b.recalled;
+    recallReasonCID = b.recallReasonCID;
+    recallSetAt = b.recallSetAt;
+    currentCustodian = batchToken.ownerOf(tokenId);
     }
 }
