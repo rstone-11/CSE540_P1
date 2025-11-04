@@ -16,8 +16,10 @@ contract VaccineRegistry is AccessControl {
     bytes32 public constant REGULATOR         = keccak256("REGULATOR");
     bytes32 public constant ORACLE_UPDATER    = keccak256("ORACLE_UPDATER");
 
+    // Lifecycle states for batches
     enum Status { Manufactured, QAReleased, Shipped, Received, InStorage, Consumed }
 
+    // Snapshot of current batch info
     struct BatchInfo {
         string  lot;
         uint64  expiry;            
@@ -35,8 +37,8 @@ contract VaccineRegistry is AccessControl {
 
     IBatchToken public immutable batchToken;
     mapping(uint256 => BatchInfo) public batches;
-    mapping(uint256 => mapping(bytes32 => string)) public latestDocCid; // tokenId -> docType -> CID
-    mapping(bytes32 => bool) private lotTaken; // keccak256(lot) -> true
+    mapping(uint256 => mapping(bytes32 => string)) public latestDocCid; 
+    mapping(bytes32 => bool) private lotTaken; 
 
     event BatchRegistered(uint256 indexed tokenId, string lot, uint64 expiry, int16 tempMinTimes10, int16 tempMaxTimes10);
     event StatusUpdated(uint256 indexed tokenId, Status next, address actor);
@@ -58,6 +60,7 @@ contract VaccineRegistry is AccessControl {
         batchToken = IBatchToken(batchTokenAddr);
     }
 
+    // Register a new batch and enforce unique lot
     function mintBatch(
         string calldata lot,
         uint64 expiry,
@@ -84,6 +87,7 @@ contract VaccineRegistry is AccessControl {
         emit StatusUpdated(tokenId, Status.Manufactured, msg.sender);
     }
 
+    // Advance lifecycle state
     function updateStatus(uint256 tokenId, Status next) external onlyCustodian(tokenId) {
         Status cur = batches[tokenId].status;
         if (!_allowed(cur, next)) revert BadStatusTransition();
@@ -98,6 +102,7 @@ contract VaccineRegistry is AccessControl {
         emit DocumentPinned(tokenId, docType, cid);
     }
 
+    // Record a temperature reading. First out-of-range marks persistent breach.
     function recordTemp(uint256 tokenId, int16 cTimes10)
         external onlyRole(ORACLE_UPDATER)
     {
@@ -112,6 +117,7 @@ contract VaccineRegistry is AccessControl {
         emit TemperatureEvent(tokenId, cTimes10, breachNow, ts);
     }
 
+    // Regulator toggles recall and sets a reason CID 
     function setRecall(uint256 tokenId, bool recalled, string calldata reasonCID)
         external onlyRole(REGULATOR)
     {
@@ -122,6 +128,7 @@ contract VaccineRegistry is AccessControl {
         emit RecallSet(tokenId, recalled, reasonCID, b.recallSetAt);
     }
 
+    // Allowed lifecycle transitions
     function _allowed(Status cur, Status next) internal pure returns (bool) {
         if (cur == Status.Manufactured) return next == Status.QAReleased;
         if (cur == Status.QAReleased)  return next == Status.Shipped;
@@ -131,6 +138,7 @@ contract VaccineRegistry is AccessControl {
         return false; 
     }
 
+    // Read-only snapshot and returns batch info plus current custodian.
     function getBatch(uint256 tokenId) external view returns (
         string memory lot,
         uint64 expiry,

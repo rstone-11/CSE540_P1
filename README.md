@@ -27,6 +27,11 @@ npx hardhat compile
 npx hardhat run scripts/deploy.js --network localhost
 npx hardhat run scripts/mintBatch.js --network localhost
 ```
+### Mint additional, unique lots
+```bash
+LOT=LOT-VAX-2025-002 npx hardhat run scripts/mintBatch.js --network localhost
+LOT=LOT-VAX-2025-003 npx hardhat run scripts/mintBatch.js --network localhost
+```
 
 # Vaccine Supply Chain Smart Contracts Design
 
