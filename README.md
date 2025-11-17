@@ -10,18 +10,19 @@
 ## Stack
 - Solidity, Hardhat, ethers.js, OpenZeppelin
 - Local chain: Hardhat node 
+- IPFS: Storacha (Web3.storage)
 
 ## Setup
 ```bash
 npm install
 ```
 
-### Start the Local Chain
+### Start the Local Chain on Terminal 1
 ```bash
 npx hardhat node
 ```
 
-### Then run scripts
+### Then run scripts on Terminal 2
 ```bash
 npx hardhat compile
 npx hardhat run scripts/deploy.js --network localhost
@@ -31,6 +32,21 @@ npx hardhat run scripts/mintBatch.js --network localhost
 ```bash
 LOT=LOT-VAX-2025-002 npx hardhat run scripts/mintBatch.js --network localhost
 LOT=LOT-VAX-2025-003 npx hardhat run scripts/mintBatch.js --network localhost
+```
+
+### Run the rest of the scripts (on the default Token 1 batch)
+```bash
+# Manufacturer -> Distributor -> Clinic
+TOKEN_ID=1 NEXT=1 npx hardhat run scripts/updateStatus.js --network localhost
+TOKEN_ID=1 TO_ROLE=distributor npx hardhat run scripts/transfer.js --network localhost
+TOKEN_ID=1 NEXT=2 npx hardhat run scripts/updateStatus.js --network localhost
+TOKEN_ID=1 TO_ROLE=clinic npx hardhat run scripts/transfer.js --network localhost
+TOKEN_ID=1 NEXT=3 npx hardhat run scripts/updateStatus.js --network localhost
+TOKEN_ID=1 NEXT=4 npx hardhat run scripts/updateStatus.js --network localhost
+
+# Use an existing pinned document at cid=bafkreia6zhdzijfkayv45m5muqcvbf5eki7bvixuknknu3rd2g52ebvkqy
+# Document exists at: https://bafkreia6zhdzijfkayv45m5muqcvbf5eki7bvixuknknu3rd2g52ebvkqy.ipfs.w3s.link/
+TOKEN_ID=1 DOC_TYPE=MANIFEST CID=bafkreia6zhdzijfkayv45m5muqcvbf5eki7bvixuknknu3rd2g52ebvkqy npx hardhat run scripts/pinDocument.js --network localhost
 ```
 
 # Vaccine Supply Chain Smart Contracts Design
@@ -202,3 +218,6 @@ Manufactured → QAReleased → Shipped → Received → InStorage → Consumed
 - **deploy.js:** Deploys both contracts, grants roles to test accounts, and writes addresses.local.json for other scripts.
 - **mintBatch.js:** Mints a new vaccine lot (ERC-721 token) with lot ID, expiry, and allowed temp band; emits BatchRegistered.
 - **lib.js:** Helper that reads addresses.local.json and exposes addresses to other scripts.
+- **transfer.js:** Transfers custody of a batch token between roles.
+- **updateStatus.js:** Advances the lifecycle Status of a batch, enforcing the state machine and custodian check.
+- **pinDocument.js:** Pins an off-chain document CID to a batch for a given docType.
