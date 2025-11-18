@@ -49,6 +49,81 @@ TOKEN_ID=1 NEXT=4 npx hardhat run scripts/updateStatus.js --network localhost
 TOKEN_ID=1 DOC_TYPE=MANIFEST CID=bafkreia6zhdzijfkayv45m5muqcvbf5eki7bvixuknknu3rd2g52ebvkqy npx hardhat run scripts/pinDocument.js --network localhost
 ```
 
+### Sample cases to test with newly added scripts
+
+Create Bathces
+```bash
+# Mint Token 1
+npx hardhat run scripts/mintBatch.js --network localhost
+
+# Mint Token 2
+LOT=LOT-VAX-2025-002 npx hardhat run scripts/mintBatch.js --network localhost
+
+# Mint Token 3
+LOT=LOT-VAX-2025-003 npx hardhat run scripts/mintBatch.js --network localhost
+
+```
+
+Token 1 - Normal Workflow with Temperature Monitoring
+```bash
+# Manufacturer releases for QA
+TOKEN_ID=1 NEXT=1 npx hardhat run scripts/updateStatus.js --network localhost
+
+# Record normal temperature
+TOKEN_ID=1 TEMP=5.5 npx hardhat run scripts/recordTemp.js --network localhost
+
+# Transfer to distributor
+TOKEN_ID=1 TO_ROLE=distributor npx hardhat run scripts/transfer.js --network localhost
+
+# Distributor ships
+TOKEN_ID=1 NEXT=2 npx hardhat run scripts/updateStatus.js --network localhost
+
+# Transfer to clinic
+TOKEN_ID=1 TO_ROLE=clinic npx hardhat run scripts/transfer.js --network localhost
+
+# Clinic receives
+TOKEN_ID=1 NEXT=3 npx hardhat run scripts/updateStatus.js --network localhost
+
+# Put in storage
+TOKEN_ID=1 NEXT=4 npx hardhat run scripts/updateStatus.js --network localhost
+
+# Pin manifest document
+TOKEN_ID=1 DOC_TYPE=MANIFEST CID=bafkreia6zhdzijfkayv45m5muqcvbf5eki7bvixuknknu3rd2g52ebvkqy npx hardhat run scripts/pinDocument.js --network localhost
+
+# View complete timeline
+TOKEN_ID=1 npx hardhat run scripts/timeline.js --network localhost
+
+```
+
+Token 2 - Temperature Breach & Recall Scenario
+```bash
+# Record normal temp
+TOKEN_ID=2 TEMP=5.0 npx hardhat run scripts/recordTemp.js --network localhost
+
+# Record breach temperature
+TOKEN_ID=2 TEMP=15.0 npx hardhat run scripts/recordTemp.js --network localhost
+
+# Issue recall due to breach
+TOKEN_ID=2 RECALLED=true REASON_CID=bafkreia6zhdzijfkayv45m5muqcvbf5eki7bvixuknknu3rd2g52ebvkqy npx hardhat run scripts/setRecall.js --network localhost
+
+# View timeline showing breach and recall
+TOKEN_ID=2 npx hardhat run scripts/timeline.js --network localhost
+
+```
+
+Token 3 - Cold Breach
+```bash
+# Record temperature too cold
+TOKEN_ID=3 TEMP=-2.0 npx hardhat run scripts/recordTemp.js --network localhost
+
+# View timeline
+TOKEN_ID=3 npx hardhat run scripts/timeline.js --network localhost
+
+```
+
+
+
+
 # Vaccine Supply Chain Smart Contracts Design
 
 ## BatchToken (ERC-721)
