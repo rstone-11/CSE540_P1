@@ -22,31 +22,83 @@ npm install
 npx hardhat node
 ```
 
-### Then run scripts on Terminal 2
+### Deploy the contracts on Terminal 2
 ```bash
 npx hardhat compile
 npx hardhat run scripts/deploy.js --network localhost
-npx hardhat run scripts/mintBatch.js --network localhost
-```
-### Mint additional, unique lots
-```bash
-LOT=LOT-VAX-2025-002 npx hardhat run scripts/mintBatch.js --network localhost
-LOT=LOT-VAX-2025-003 npx hardhat run scripts/mintBatch.js --network localhost
 ```
 
-### Run the rest of the scripts (on the default Token 1 batch)
+### Token 1 Workflow (No Breach Scenario)
 ```bash
-# Manufacturer -> Distributor -> Clinic
+# Mint Token 1 (default lot LOT-VAX-2025-001)
+npx hardhat run scripts/mintBatch.js --network localhost
+
+# Manufacturer releases Token 1 for QA (Manufactured -> QAReleased)
 TOKEN_ID=1 NEXT=1 npx hardhat run scripts/updateStatus.js --network localhost
+
+# Record an in-range temperature reading (5.5°C) using the oracle
+TOKEN_ID=1 TEMP_READING=5.5 npx hardhat run scripts/recordTemp.js --network localhost
+
+# Transfer custody from Manufacturer to Distributor
 TOKEN_ID=1 TO_ROLE=distributor npx hardhat run scripts/transfer.js --network localhost
+
+# Distributor ships Token 1 (QAReleased -> Shipped)
 TOKEN_ID=1 NEXT=2 npx hardhat run scripts/updateStatus.js --network localhost
+
+# Transfer custody from Distributor to Clinic
 TOKEN_ID=1 TO_ROLE=clinic npx hardhat run scripts/transfer.js --network localhost
+
+# Clinic receives Token 1 (Shipped -> Received)
 TOKEN_ID=1 NEXT=3 npx hardhat run scripts/updateStatus.js --network localhost
+
+# Clinic puts Token 1 into storage (Received -> InStorage)
 TOKEN_ID=1 NEXT=4 npx hardhat run scripts/updateStatus.js --network localhost
 
-# Use an existing pinned document at cid=bafkreia6zhdzijfkayv45m5muqcvbf5eki7bvixuknknu3rd2g52ebvkqy
-# Document exists at: https://bafkreia6zhdzijfkayv45m5muqcvbf5eki7bvixuknknu3rd2g52ebvkqy.ipfs.w3s.link/
-TOKEN_ID=1 DOC_TYPE=MANIFEST CID=bafkreia6zhdzijfkayv45m5muqcvbf5eki7bvixuknknu3rd2g52ebvkqy npx hardhat run scripts/pinDocument.js --network localhost
+# Pin a MANIFEST document CID to Token 1 (clinic as current custodian)
+TOKEN_ID=1 DOC_TYPE=MANIFEST \
+  CID=bafkreia6zhdzijfkayv45m5muqcvbf5eki7bvixuknknu3rd2g52ebvkqy \
+  npx hardhat run scripts/pinDocument.js --network localhost
+
+# Final status is consumed
+TOKEN_ID=1 NEXT=5 npx hardhat run scripts/updateStatus.js --network localhost
+
+# View the complete on-chain timeline for Token 1 
+TOKEN_ID=1 npx hardhat run scripts/timeline.js --network localhost
+
+```
+
+### Token 2 Workflow (Breach and Recall Scenario)
+```bash
+# Mint Token 2 with a custom lot
+LOT=LOT-VAX-2025-002 npx hardhat run scripts/mintBatch.js --network localhost
+
+# Record an in-range temperature for Token 2 (5.0°C) using the oracle
+TOKEN_ID=2 TEMP_READING=5.0 npx hardhat run scripts/recordTemp.js --network localhost
+
+# Record an out-of-range high temperature for Token 2 (15.0°C) -> breach
+TOKEN_ID=2 TEMP_READING=15.0 npx hardhat run scripts/recordTemp.js --network localhost
+
+# Regulator issues a recall for Token 2 with a reason document CID
+TOKEN_ID=2 RECALLED=true \
+  REASON_CID=bafkreia6zhdzijfkayv45m5muqcvbf5eki7bvixuknknu3rd2g52ebvkqy \
+  npx hardhat run scripts/setRecall.js --network localhost
+
+# View Token 2 timeline showing in-range reading, breach, and recall issuance
+TOKEN_ID=2 npx hardhat run scripts/timeline.js --network localhost
+
+```
+
+### Token 3 Workflow (Cold Breach Scenario)
+```bash
+# Mint Token 3 with another custom lot
+LOT=LOT-VAX-2025-003 npx hardhat run scripts/mintBatch.js --network localhost
+
+# Record an out-of-range low temperature for Token 3 (-2.0°C) -> cold breach
+TOKEN_ID=3 TEMP_READING=-2.0 npx hardhat run scripts/recordTemp.js --network localhost
+
+# View Token 3 timeline showing the cold breach and updated breach state
+TOKEN_ID=3 npx hardhat run scripts/timeline.js --network localhost
+
 ```
 
 # Vaccine Supply Chain Smart Contracts Design
@@ -118,9 +170,9 @@ mapping(uint256 => mapping(bytes32 => string)) public latestDocCid;
 ```solidity
 event BatchRegistered(uint256 indexed tokenId, string lot, uint64 expiry, int16 tempMinTimes10, int16 tempMaxTimes10);
 event StatusUpdated(uint256 indexed tokenId, Status next, address actor);
-event TemperatureEvent(uint256 indexed tokenId, int16 cTimes10, bool isBreach, uint64 timestamp);
+event TemperatureEvent(uint256 indexed tokenId, int16 cTimes10, bool isBreach, uint64 at);
 event DocumentPinned(uint256 indexed tokenId, bytes32 indexed docType, string cid);
-event RecallSet(uint256 indexed tokenId, bool recalled, string reasonCid, uint64 at);
+event RecallSet(uint256 indexed tokenId, bool recalled, string reasonCID, uint64 at);
 ```
 
 ### Errors
@@ -206,7 +258,7 @@ Manufactured → QAReleased → Shipped → Received → InStorage → Consumed
 
 ---
 
-## Contracts (draft design)
+## Contracts
 
 - **BatchToken.sol:** ERC-721 + MINTER_ROLE for registry.
 - **VaccineRegistry.sol:** roles, batch struct, status FSM, temp events, doc CIDs, recalls.
@@ -221,3 +273,6 @@ Manufactured → QAReleased → Shipped → Received → InStorage → Consumed
 - **transfer.js:** Transfers custody of a batch token between roles.
 - **updateStatus.js:** Advances the lifecycle Status of a batch, enforcing the state machine and custodian check.
 - **pinDocument.js:** Pins an off-chain document CID to a batch for a given docType.
+- **recordTemp.js** Records a temperature reading for a batch and flags if there is a breach, callable by the oracle
+- **setRecall.js** Sets or clears a recall for a batch, with a reason CID, callable by the regulator
+- **timeline.js** Prints a human-readable snapshot and full event timeline for a batch
