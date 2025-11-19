@@ -8,11 +8,11 @@ async function main() {
   const tokenId = Number(process.env.TOKEN_ID || process.argv[2] || 1);
   
   // Get temperature in Celsius from environment or arguments
-  const tempCelsius = process.env.TEMP || process.argv[3];
+  const tempCelsius = process.env.TEMP_READING || process.argv[3];
   
   if (tempCelsius === undefined) {
     throw new Error(
-      "Missing TEMP. Example: TOKEN_ID=1 TEMP=5.5 npx hardhat run scripts/recordTemp.js --network localhost"
+      "Missing TEMP. Example: TOKEN_ID=1 TEMP_READING=5.5 npx hardhat run scripts/recordTemp.js --network localhost"
     );
   }
 
